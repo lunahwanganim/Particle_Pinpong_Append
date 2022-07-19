@@ -1,0 +1,100 @@
+#pragma kernel Update
+#pragma kernel UpdateComputeArgs
+#pragma kernel Emit
+
+#include "../Libraries/Random.cginc"
+#include "../Libraries/header.cginc"
+
+
+#define NB_EMIT_THREADS_PER_GROUP 16
+#define NB_UPDATE_THREADS_PER_GROUP 256
+
+
+struct Particle
+{
+    uint    Id;
+    float3  Position;
+    float3  Velocity;
+    float   Life;
+    float   Age;
+};
+
+RWStructuredBuffer<uint> _BufferNextId;
+AppendStructuredBuffer<Particle>  _BufferParticleCurrent;
+ConsumeStructuredBuffer<Particle>  _BufferParticlePrevious;
+RWStructuredBuffer<uint> _BufferRenderArgs;
+RWStructuredBuffer<uint> _BufferComputeUpdateArgs;
+
+float  _DeltaTime;
+float3 _ParticleEmitPosition;
+float _Seed;
+uint     _NumParticleMax;
+uint _IdParticleMax;
+uint    _NumEmit;
+float   _SeedTime;
+
+// counter --> atomic function
+
+[numthreads(NB_EMIT_THREADS_PER_GROUP, 1, 1)]
+void Emit(uint3 id : SV_DispatchThreadID)
+{
+    if(_BufferRenderArgs[1] > _NumParticleMax - _NumEmit - 1) return; // XXX: The _NumEmit should be subtracted
+        Particle particle;
+        particle.Position = _ParticleEmitPosition;
+        particle.Velocity = normalize(random3(float3(id.x * 0.119, _SeedTime * 1.007, 1.119)) - 0.5);
+        particle.Life = Fit(rand2dTo1d(float2(id.x * 0.197, _SeedTime * 0.131)), 0, 1, 1, 3.0);
+
+
+        particle.Age = 0.0;
+
+        int     id_prev;
+        InterlockedAdd(_BufferNextId[0], 1, id_prev);
+        InterlockedCompareExchange(_BufferNextId[0], _IdParticleMax, 0, id_prev);
+        particle.Id = id_prev;
+        
+        //particle.Id = 0;
+
+
+        _BufferParticleCurrent.Append(particle);
+
+
+
+
+    //}
+
+
+}
+
+
+[numthreads(1, 1, 1)]
+void UpdateComputeArgs(uint3 id : SV_DispatchThreadID){
+        if(_BufferRenderArgs[1] == 0) _BufferComputeUpdateArgs[0] = 0;
+        else{
+            _BufferComputeUpdateArgs[0] = max(0, (_BufferRenderArgs[1] - 1) / NB_UPDATE_THREADS_PER_GROUP + 1);//
+        }
+
+        _BufferComputeUpdateArgs[1] = 1;
+        _BufferComputeUpdateArgs[2] = 1;
+        _BufferComputeUpdateArgs[3] = 1;
+}
+
+
+
+[numthreads(NB_UPDATE_THREADS_PER_GROUP, 1, 1)]
+void Update(uint3 id : SV_DispatchThreadID)
+{
+    if(id.x > _BufferRenderArgs[1] - 1 || _BufferRenderArgs[1] < 1) return;
+
+    Particle particle = _BufferParticlePrevious.Consume();
+    
+
+    if(particle.Age <= particle.Life){
+        particle.Position += _DeltaTime * particle.Velocity;
+        particle.Age += _DeltaTime;
+        _BufferParticleCurrent.Append(particle);
+
+    }
+ 
+    
+
+}
