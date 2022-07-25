@@ -74,7 +74,7 @@ namespace ParticleSolver
             _ArgsRender = null;
             _Bounds = new Bounds(transform.position, Bounds);
 
-            _BufferRenderArgs.SetCounterValue(0);
+            //_BufferRenderArgs.SetCounterValue(0);
 
 
 
@@ -86,7 +86,7 @@ namespace ParticleSolver
             _BufferComputeUpdateArgs.SetData(_ArgsCompute);
             _ArgsCompute = null;
 
-            _BufferComputeUpdateArgs.SetCounterValue(0);
+            //_BufferComputeUpdateArgs.SetCounterValue(0);
 
 
             // _BufferParticle initation
