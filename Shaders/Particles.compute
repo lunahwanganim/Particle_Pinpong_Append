@@ -38,7 +38,8 @@ float   _SeedTime;
 [numthreads(NB_EMIT_THREADS_PER_GROUP, 1, 1)]
 void Emit(uint3 id : SV_DispatchThreadID)
 {
-    if(_BufferRenderArgs[1] > _NumParticleMax - _NumEmit - 1) return; // XXX: The _NumEmit should be subtracted
+    if(_BufferRenderArgs[1] > _NumParticleMax - _NumEmit - 1 ||
+        id.x > _NumEmit - 1) return; // XXX: The _NumEmit should be subtracted
         Particle particle;
         particle.Position = _ParticleEmitPosition;
         particle.Velocity = normalize(random3(float3(id.x * 0.119, _SeedTime * 1.007, 1.119)) - 0.5);

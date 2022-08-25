@@ -30,6 +30,9 @@ namespace ParticleSolver
         [SerializeField] private int IdParticleMax = 65536;
         [SerializeField] private Vector3 Bounds = new Vector3(100f, 100f, 100f);
 
+        [SerializeField] private float EmitFPS = 50.0f; // 50FPS
+
+
         private PingPongAppendBuffer _BufferParticle;
         private ComputeShader _Compute;
         private int _KernelIDUpdate = -1;
@@ -51,10 +54,16 @@ namespace ParticleSolver
         private uint[] _ArgsRender = new uint[5] { 0, 0, 0, 0, 0 };
         private uint[] _ArgsCompute = new uint[4] { 1, 1, 1, 0 };
 
-
+        private float _EmitFpsInverse;
+        private float _TimeCounter;
 
         private void InitCompute()
         {
+
+            // Variable initiation
+            _EmitFpsInverse = 1.0f / EmitFPS;
+            _TimeCounter = 0.0f;
+
 
 
             // next id buffer initiation
@@ -139,7 +148,7 @@ namespace ParticleSolver
 
             _Compute.SetInt("_NumParticleMax", NumParticleMax); // Atmoic function으로 조정
             _Compute.SetInt("_IdParticleMax", IdParticleMax); // Atmoic function으로 조정
-            _Compute.SetInt("_NumEmit", NumEmit); // Atmoic function으로 조정
+            //_Compute.SetInt("_NumEmit", NumEmit); // Atmoic function으로 조정
 
 
         }
@@ -171,23 +180,44 @@ namespace ParticleSolver
 
             // 3. 그 다음에 Emit
 
-            if (Input.GetMouseButton(0))
+
+            // TimeCounter를 이용하는 것은 fixedUpdate와 같은 효과를 준다.
+            // FPS에 상관 없이 균일하게 emit하기 위해서
+            _TimeCounter += Time.deltaTime;
+
+            if (_TimeCounter > _EmitFpsInverse)
             {
-                if (NumEmit == 0) _NumThreadGrpEmit = 0;
-                else
+
+
+                var num_emit = NumEmit;// * Mathf.Floor(_TimeCounter * EmitFPS);
+
+
+
+                if (Input.GetMouseButton(0))
                 {
+                    if (num_emit == 0) _NumThreadGrpEmit = 0;
+                    else
+                    {
 
 
-                    _Compute.SetBuffer(_KernelIDEmit, "_BufferParticleCurrent", _BufferParticle.Current);
-                    //_Compute.SetBuffer(_KernelIDEmit, "_BufferRenderArgs", _BufferRenderArgs);
+                        _Compute.SetInt("_NumEmit", num_emit);
 
 
 
-                    _NumThreadGrpEmit = Mathf.FloorToInt((NumEmit - 1) / NB_EMIT_THREADS_PER_GROUP) + 1;
-                    var pos_click = Camera.main.ScreenToWorldPoint(Input.mousePosition + Vector3.forward * 10);
-                    _Compute.SetVector("_ParticleEmitPosition", pos_click);
-                    _Compute.Dispatch(_KernelIDEmit, _NumThreadGrpEmit, 1, 1);
+                        _Compute.SetBuffer(_KernelIDEmit, "_BufferParticleCurrent", _BufferParticle.Current);
+                        //_Compute.SetBuffer(_KernelIDEmit, "_BufferRenderArgs", _BufferRenderArgs);
+
+
+
+                        _NumThreadGrpEmit = Mathf.FloorToInt((num_emit - 1) / NB_EMIT_THREADS_PER_GROUP) + 1;
+                        var pos_click = Camera.main.ScreenToWorldPoint(Input.mousePosition + Vector3.forward * 10);
+                        _Compute.SetVector("_ParticleEmitPosition", pos_click);
+                        _Compute.Dispatch(_KernelIDEmit, _NumThreadGrpEmit, 1, 1);
+                    }
                 }
+
+                _TimeCounter -= _EmitFpsInverse;
+
             }
 
             // 4. 지금까지 Update에서 업데이트된 append buffer의 개수만큰 _BufferRenderArgs 개수를 업데이트 한다.
